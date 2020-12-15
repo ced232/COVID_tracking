@@ -4,21 +4,28 @@
 # ----------
 
 library(dplyr)
+library(factoextra)
 library(ggplot2)
 library(ggsci)
 library(grid)
 library(gridExtra)
+library(NbClust)
 library(tidyr)
 library(usmap)
 library(viridis)
 
 
 # ----------
-# Data import/cleaning
+# Constants
 # ----------
 
 date_title <- "December 15th"
-customPal <- c(pal_jco()(4)[c(3,1,2,4)])
+customPal <- c(pal_jco()(5)[c(5,1,2,4,3)])
+
+
+# ----------
+# Data import/cleaning
+# ----------
 
 # import time series data:
 
@@ -121,6 +128,213 @@ var_plot <- ggplot(pca_var, aes(x = PC, y = var)) +
           plot.margin = unit(c(5.5, 33, 5.5, 5.5), "pt"))
 
 var_plot
+
+# visualize PC rotations:
+
+pc_rotations <- as.data.frame(confirmed_prcomp$rotation[,1:8]) %>%
+    mutate(date = as.Date("2020-1-23"):as.Date("2020-12-14")) %>%
+    mutate(date = as.Date(date, origin = "1970-1-1")) %>%
+    gather(pc, value, -date)
+
+r <- range(pc_rotations$value)
+rlim <- max(abs(r))
+
+pc_rotations_plot <- pc_rotations %>%
+    ggplot(aes(x = date, y = pc)) +
+    ggtitle("\nPrinciple Component Rotations",
+            subtitle = paste0(date_title, "\n")) +
+    geom_tile(aes(fill = value)) +
+    scale_fill_gradientn(name = "rotation", limits = c(-rlim, rlim), 
+                         colours = c("#B2182B","White","#244999")) +
+    scale_y_discrete(name = "principal \ncomponent ", 
+                     limits = rev(names(as.data.frame(confirmed_prcomp$rotation[,1:8])))) +
+    scale_x_date(name = "\n\n", date_breaks = "2 months", date_labels = "%B") +
+    theme_minimal() +
+    theme(panel.grid.minor.x = element_blank(),
+        text = element_text(color = "white", family = "Avenir"), 
+        axis.text = element_text(color = "white"),
+        axis.title.y = element_text(angle = 0, vjust = .5, hjust = 1),
+        plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
+        plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
+        plot.background = element_rect(fill = "black", color = "black"), 
+        legend.background = element_rect(fill = "black"), 
+        legend.key = element_rect(fill = "black"),
+        legend.key.size = unit(.6, "cm"),
+        legend.text = element_text(size = 8))
+
+pc_rotations_plot
+
+
+# ----------
+# Clustering
+# ----------
+
+# determine ideal k value:
+
+nb <- NbClust(confirmed_pca[,c(2:4)], distance = "euclidean", min.nc = 2,
+              max.nc = 20, method = "complete", index ="all")
+fviz_nbclust(nb) + theme_minimal()
+
+k_val <- 5
+
+# perform k-clustering:
+
+set.seed(125)
+k <- kmeans(confirmed_pca[,c(2:4)], k_val)
+cluster <- factor(k$cluster)
+confirmed_cluster <- cbind(confirmed_pca, cluster) 
+
+# visualize state clusters map:
+
+state_abbr <- read.csv("state_fips.csv", stringsAsFactors = FALSE)
+
+confirmed_plot <- confirmed_cluster %>%
+    rename(NAME = state) %>%
+    left_join(., state_abbr, by = "NAME") %>%
+    select(state, cluster)
+
+state_data <- usmap::statepop %>%
+    rename(state = abbr) %>%
+    filter(!(state == "DC")) %>%
+    left_join(., confirmed_plot, by = "state")
+
+confirmed_cluster_map <- plot_usmap(data = state_data, values = "cluster", color = "black") + 
+    ggtitle("\nStates Clustered by Trends in Daily New Cases",
+            subtitle = date_title) +
+    scale_fill_manual(name = "Cluster",
+                      values = customPal, 
+                      na.translate = FALSE, drop = FALSE) +
+    theme(legend.position = "right", 
+          text = element_text(color = "white", family = "Avenir"), 
+          plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
+          plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
+          plot.background = element_rect(fill = "black", color = "black"), 
+          legend.background = element_rect(fill = "black"), 
+          legend.key = element_rect(fill = "black"),
+          legend.key.size = unit(.5, "cm"),
+          legend.text = element_text(size = 8))
+
+confirmed_cluster_map
+
+# visualize trends by cluster:
+
+deaths_cluster_section <- confirmed_cluster %>%
+    select(state, cluster) %>%
+    left_join(., deaths_daily_data, by = "state") %>%
+    select(-state, -pop) %>%
+    group_by(cluster) %>%
+    summarise_all(list(mean = mean)) %>%
+    gather(date, cases, -cluster) %>%
+    mutate(cases = 1000000*cases) %>%
+    rowwise() %>%
+    mutate(date = gsub("X", "", date)) %>%
+    mutate(date = gsub("_sum.1_mean", "", date)) %>%
+    mutate(month = strsplit(date, ".", fixed = TRUE)[[1]][1]) %>%
+    mutate(day = strsplit(date, ".", fixed = TRUE)[[1]][2]) %>%
+    mutate(date = as.Date(paste0("2020-", month, "-", day))) %>%
+    select(-month, -day) %>%
+    mutate(metric = "deaths")
+
+confirmed_cluster_section <- confirmed_cluster %>%
+    select(state, cluster) %>%
+    left_join(., confirmed_daily_data, by = "state") %>%
+    select(-state, -pop) %>%
+    group_by(cluster) %>%
+    summarise_all(list(mean = mean)) %>%
+    gather(date, cases, -cluster) %>%
+    mutate(cases = 1000000*cases) %>%
+    rowwise() %>%
+    mutate(date = gsub("X", "", date)) %>%
+    mutate(date = gsub("_sum.1_mean", "", date)) %>%
+    mutate(month = strsplit(date, ".", fixed = TRUE)[[1]][1]) %>%
+    mutate(day = strsplit(date, ".", fixed = TRUE)[[1]][2]) %>%
+    mutate(date = as.Date(paste0("2020-", month, "-", day))) %>%
+    select(-month, -day) %>%
+    mutate(metric = "confirmed")
+
+full_plot <- rbind(confirmed_cluster_section, deaths_cluster_section) 
+
+metric_names <- list(
+    "confirmed" = "New Confirmed Cases", 
+    "deaths" = "Deaths"
+)
+
+metric_labeller <- function(variable,value){
+    return(metric_names[value])
+}
+
+trends_plot <- full_plot %>%
+    ggplot(aes(x = date, y = cases)) +
+    ggtitle("\nUS Covid-19 Trends by State Group",
+            subtitle = date_title) +
+    geom_hline(yintercept = 0, size = .5, color = "gray45") +
+    geom_smooth(aes(color = cluster), se = FALSE, span = .1, size = .8) +
+    scale_color_manual(name = "Group",
+                       values = customPal, 
+                       na.translate = FALSE, drop = FALSE) +
+    scale_x_date(name = "", date_breaks = "2 months", date_labels = "%B") +
+    scale_y_continuous(name = "mean daily \ncases/deaths \nper million ") +
+    facet_wrap(~metric, nrow = 2, scales = "free", labeller = metric_labeller) +
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major.y = element_line(color = "gray25"),
+          panel.grid.major.x = element_line(color = "gray35"),
+          text = element_text(color = "white", family = "Avenir"), 
+          strip.text = element_text(color = "white", family = "Avenir Black", size = 12, hjust = 0),
+          axis.text = element_text(color = "white"),
+          axis.title.y = element_text(size = 10, angle = 0, vjust = .5, hjust = 1),
+          plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
+          plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
+          panel.background = element_rect(fill = "gray15"),
+          panel.border = element_rect(fill = NA, color = "gray45", size = 1),
+          plot.background = element_rect(fill = "black", color = "black"), 
+          legend.title = element_text(size = 10),
+          legend.background = element_rect(fill = "black"), 
+          legend.key = element_rect(fill = "black"),
+          legend.key.size = unit(.6, "cm"),
+          legend.text = element_text(size = 8),
+          legend.position = "none",
+          plot.margin = unit(c(5.5, 33, 5.5, 5.5), "pt"))
+
+trends_plot
+
+# visualize mean PC values for each cluster:
+
+pc_vals_by_cluster <- confirmed_cluster %>%
+    group_by(cluster) %>%
+    select(-state) %>%
+    summarise_all(mean) %>%
+    gather(PC, value, -cluster)
+
+r <- range(pc_vals_by_cluster$value)
+rlim <- max(abs(r))
+
+pc_vals_by_cluster %>%
+    mutate(cluster = factor(cluster, levels = 5:1)) %>%
+    ggplot(aes(y = cluster, x = PC)) +
+    ggtitle("\nMean PC Values by Cluster",
+            subtitle = paste0(date_title, "\n")) +
+    geom_tile(color = "black", aes(fill = value)) +
+    scale_y_discrete(name = "cluster ") +
+    scale_x_discrete(name = "\nPrincipal Component\n") +
+    scale_fill_gradientn(name = "Value", limits = c(-rlim,rlim),
+                         colours = c("#B2182B","White","#244999")) +
+    theme_minimal() +
+    theme(
+        panel.grid.minor.x = element_blank(),
+        text = element_text(color = "white", family = "Avenir"), 
+        axis.text = element_text(color = "white"),
+        axis.title.y = element_text(angle = 0, vjust = .5, hjust = 1),
+        plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
+        plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
+        plot.background = element_rect(fill = "black", color = "black"), 
+        legend.background = element_rect(fill = "black"), 
+        legend.key = element_rect(fill = "black"),
+        legend.key.size = unit(.6, "cm"),
+        legend.text = element_text(size = 8))
+
+
+
 
 
 
