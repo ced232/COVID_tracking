@@ -3,6 +3,7 @@
 # Libraries
 # ----------
 
+library(cluster)
 library(dplyr)
 library(factoextra)
 library(ggplot2)
@@ -184,6 +185,45 @@ k <- kmeans(confirmed_pca[,c(2:4)], k_val)
 cluster <- factor(k$cluster)
 confirmed_cluster <- cbind(confirmed_pca, cluster) 
 
+# visualize silhouettes:
+
+sil <- silhouette(k$cluster, dist(confirmed_pca[,c(2:4)]))
+sort_sil <- sortSilhouette(sil)
+
+sil_df <- as.data.frame(sort_sil[,1:3]) %>%
+    mutate(index = nrow(sort_sil):1) %>%
+    mutate(cluster = factor(cluster)) 
+
+average_sil <- mean(sil_df$sil_width)
+
+sil_plot <- sil_df%>%
+    ggplot(aes(y = sil_width, x = index)) +
+    ggtitle("\nK-Clustering Silhouettes",
+            subtitle = paste0(date_title, "\n")) +
+    geom_col(aes(fill = cluster)) +
+    geom_hline(yintercept = average_sil, color = "white", linetype = "dashed") +
+    geom_hline(yintercept = 0, color = "white") +
+    scale_y_continuous(name = "\nsilhouette width\n") +
+    coord_flip() +
+    scale_fill_manual(name = "Group", values = customPal) + 
+    theme_minimal() +
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major = element_blank(),
+          text = element_text(color = "white", family = "Avenir"), 
+          axis.text = element_text(color = "white"),
+          axis.text.y = element_blank(),
+          axis.title.y = element_blank(),
+          plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
+          plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
+          panel.background = element_rect(fill = "black"),
+          plot.background = element_rect(fill = "black", color = "black"),
+          legend.background = element_rect(fill = "black"), 
+          legend.key = element_rect(fill = "black"),
+          legend.key.size = unit(.6, "cm"),
+          legend.text = element_text(size = 8))
+
+sil_plot
+
 # visualize state clusters map:
 
 state_abbr <- read.csv("state_fips.csv", stringsAsFactors = FALSE)
@@ -317,11 +357,10 @@ pc_vals_by_cluster %>%
     geom_tile(color = "black", aes(fill = value)) +
     scale_y_discrete(name = "cluster ") +
     scale_x_discrete(name = "\nPrincipal Component\n") +
-    scale_fill_gradientn(name = "Value", limits = c(-rlim,rlim),
+    scale_fill_gradientn(name = "Mean\nValue", limits = c(-rlim,rlim),
                          colours = c("#B2182B","White","#244999")) +
     theme_minimal() +
-    theme(
-        panel.grid.minor.x = element_blank(),
+    theme(panel.grid.minor.x = element_blank(),
         text = element_text(color = "white", family = "Avenir"), 
         axis.text = element_text(color = "white"),
         axis.title.y = element_text(angle = 0, vjust = .5, hjust = 1),
