@@ -21,7 +21,7 @@ library(viridis)
 # ----------
 
 date_title <- "December 16th"
-customPal <- c(pal_jco()(5)[c(5,1,2,4,3)])
+customPal <- c(pal_jco()(5)[c(5,1,2)])
 
 
 # ----------
@@ -85,10 +85,12 @@ confirmed_prcomp <- confirmed_daily_data %>%
 confirmed_pca <- data.frame(state = confirmed_daily_data$state,
                             PC1 = confirmed_prcomp$x[, 1],
                             PC2 = confirmed_prcomp$x[, 2],
-                            PC3 = confirmed_prcomp$x[, 3]) %>%
+                            PC3 = confirmed_prcomp$x[, 3],
+                            PC4 = confirmed_prcomp$x[, 4]) %>%
     mutate(PC1 = scale(PC1)) %>%
     mutate(PC2 = scale(PC2)) %>%
-    mutate(PC3 = scale(PC3)) 
+    mutate(PC3 = scale(PC3)) %>%
+    mutate(PC4 = scale(PC4)) 
 
 # visualize cumulative variance:
 
@@ -133,7 +135,7 @@ var_plot
 # visualize PC rotations:
 
 pc_rotations <- as.data.frame(confirmed_prcomp$rotation[,1:8]) %>%
-    mutate(date = as.Date("2020-1-23"):as.Date("2020-12-14")) %>%
+    mutate(date = as.Date("2020-1-23"):as.Date("2020-12-15")) %>%
     mutate(date = as.Date(date, origin = "1970-1-1")) %>%
     gather(pc, value, -date)
 
@@ -172,22 +174,22 @@ pc_rotations_plot
 
 # determine ideal k value:
 
-nb <- NbClust(confirmed_pca[,c(2:4)], distance = "euclidean", min.nc = 2,
+nb <- NbClust(confirmed_pca[,c(2:5)], distance = "euclidean", min.nc = 2,
               max.nc = 20, method = "complete", index ="all")
 fviz_nbclust(nb) + theme_minimal()
 
-k_val <- 5
+k_val <- 3
 
 # perform k-clustering:
 
 set.seed(125)
-k <- kmeans(confirmed_pca[,c(2:4)], k_val)
+k <- kmeans(confirmed_pca[,c(2:5)], k_val)
 cluster <- factor(k$cluster)
 confirmed_cluster <- cbind(confirmed_pca, cluster) 
 
 # visualize silhouettes:
 
-sil <- silhouette(k$cluster, dist(confirmed_pca[,c(2:4)]))
+sil <- silhouette(k$cluster, dist(confirmed_pca[,c(2:5)]))
 sort_sil <- sortSilhouette(sil)
 
 sil_df <- as.data.frame(sort_sil[,1:3]) %>%
@@ -205,7 +207,7 @@ sil_plot <- sil_df%>%
     geom_hline(yintercept = 0, color = "white") +
     scale_y_continuous(name = "\nsilhouette width\n") +
     coord_flip() +
-    scale_fill_manual(name = "Group", values = customPal) + 
+    scale_fill_manual(name = "Cluster", values = customPal) + 
     theme_minimal() +
     theme(panel.grid.minor = element_blank(),
           panel.grid.major = element_blank(),
@@ -350,7 +352,7 @@ r <- range(pc_vals_by_cluster$value)
 rlim <- max(abs(r))
 
 pc_vals_by_cluster %>%
-    mutate(cluster = factor(cluster, levels = 5:1)) %>%
+    mutate(cluster = factor(cluster, levels = 3:1)) %>%
     ggplot(aes(y = cluster, x = PC)) +
     ggtitle("\nMean PC Values by Cluster",
             subtitle = paste0(date_title, "\n")) +
