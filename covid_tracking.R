@@ -20,7 +20,7 @@ library(viridis)
 # Constants
 # ----------
 
-date_title <- "December 22nd"
+date_title <- "December 24th"
 customPal <- c(pal_jco()(7)[c(5,1,2,4,3,7)])
 
 
@@ -30,7 +30,7 @@ customPal <- c(pal_jco()(7)[c(5,1,2,4,3,7)])
 
 # import time series data:
 
-confirmed_data <- read.csv("confirmed_2020_12_22.csv", stringsAsFactors = FALSE)  %>%
+confirmed_data <- read.csv("confirmed_2020_12_24.csv", stringsAsFactors = FALSE)  %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                  "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key) %>%
@@ -38,7 +38,7 @@ confirmed_data <- read.csv("confirmed_2020_12_22.csv", stringsAsFactors = FALSE)
     group_by(state) %>%
     summarise_all(list(sum = sum))
 
-deaths_data <- read.csv("deaths_2020_12_22.csv", stringsAsFactors = FALSE) %>%
+deaths_data <- read.csv("deaths_2020_12_24.csv", stringsAsFactors = FALSE) %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key, -Population) %>%
@@ -135,7 +135,7 @@ var_plot
 # visualize PC rotations:
 
 pc_rotations <- as.data.frame(confirmed_prcomp$rotation[,1:8]) %>%
-    mutate(date = as.Date("2020-1-23"):as.Date("2020-12-21")) %>%
+    mutate(date = as.Date("2020-1-23"):as.Date("2020-12-23")) %>%
     mutate(date = as.Date(date, origin = "1970-1-1")) %>%
     gather(pc, value, -date)
 
