@@ -19,7 +19,7 @@ library(viridis)
 # Constants
 # ----------
 
-date_title <- "December 27th"
+date_title <- "December 28th"
 customPal <- magma(10)[c(10,8,6)]
 
 
@@ -29,7 +29,7 @@ customPal <- magma(10)[c(10,8,6)]
 
 # import time series data:
 
-confirmed_data <- read.csv("confirmed_2020_12_27.csv", stringsAsFactors = FALSE)  %>%
+confirmed_data <- read.csv("confirmed_2020_12_28.csv", stringsAsFactors = FALSE)  %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                  "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key) %>%
@@ -37,7 +37,7 @@ confirmed_data <- read.csv("confirmed_2020_12_27.csv", stringsAsFactors = FALSE)
     group_by(state) %>%
     summarise_all(list(sum = sum))
 
-deaths_data <- read.csv("deaths_2020_12_27.csv", stringsAsFactors = FALSE) %>%
+deaths_data <- read.csv("deaths_2020_12_28.csv", stringsAsFactors = FALSE) %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key, -Population) %>%
@@ -326,7 +326,7 @@ trends_plot <- full_plot %>%
           axis.title.y = element_text(size = 10, angle = 0, vjust = .5, hjust = 1),
           plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
           plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
-          panel.background = element_rect(fill = "gray15"),
+          panel.background = element_rect(fill = "gray10"),
           panel.border = element_rect(fill = NA, color = "gray45", size = 1),
           plot.background = element_rect(fill = "black", color = "black"), 
           legend.title = element_text(size = 10),
