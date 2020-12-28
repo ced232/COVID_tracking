@@ -7,7 +7,6 @@ library(cluster)
 library(dplyr)
 library(factoextra)
 library(ggplot2)
-library(ggsci)
 library(grid)
 library(gridExtra)
 library(NbClust)
@@ -21,7 +20,7 @@ library(viridis)
 # ----------
 
 date_title <- "December 27th"
-customPal <- c(pal_jco()(7)[c(5,1,2,4,3,7)])
+customPal <- magma(10)[c(10,8,6)]
 
 
 # ----------
