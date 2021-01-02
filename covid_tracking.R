@@ -19,7 +19,7 @@ library(viridis)
 # Constants
 # ----------
 
-date_title <- "January 1st"
+date_title <- "January 2nd"
 customPal <- magma(10)[c(10,8,6)]
 
 
@@ -29,7 +29,7 @@ customPal <- magma(10)[c(10,8,6)]
 
 # import time series data:
 
-confirmed_data <- read.csv("confirmed_2021_1_1.csv", stringsAsFactors = FALSE)  %>%
+confirmed_data <- read.csv("confirmed_2021_1_2.csv", stringsAsFactors = FALSE)  %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                  "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key) %>%
@@ -37,7 +37,7 @@ confirmed_data <- read.csv("confirmed_2021_1_1.csv", stringsAsFactors = FALSE)  
     group_by(state) %>%
     summarise_all(list(sum = sum))
 
-deaths_data <- read.csv("deaths_2021_1_1.csv", stringsAsFactors = FALSE) %>%
+deaths_data <- read.csv("deaths_2021_1_2.csv", stringsAsFactors = FALSE) %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key, -Population) %>%
@@ -272,7 +272,8 @@ deaths_cluster_section <- confirmed_cluster %>%
     mutate(date = gsub("_sum.1_mean", "", date)) %>%
     mutate(month = strsplit(date, ".", fixed = TRUE)[[1]][1]) %>%
     mutate(day = strsplit(date, ".", fixed = TRUE)[[1]][2]) %>%
-    mutate(date = as.Date(paste0("2020-", month, "-", day))) %>%
+    mutate(year = strsplit(date, ".", fixed = TRUE)[[1]][3]) %>%
+    mutate(date = as.Date(paste0("20", year, "-", month, "-", day))) %>%
     select(-month, -day) %>%
     mutate(metric = "deaths")
 
@@ -289,7 +290,8 @@ confirmed_cluster_section <- confirmed_cluster %>%
     mutate(date = gsub("_sum.1_mean", "", date)) %>%
     mutate(month = strsplit(date, ".", fixed = TRUE)[[1]][1]) %>%
     mutate(day = strsplit(date, ".", fixed = TRUE)[[1]][2]) %>%
-    mutate(date = as.Date(paste0("2020-", month, "-", day))) %>%
+    mutate(year = strsplit(date, ".", fixed = TRUE)[[1]][3]) %>%
+    mutate(date = as.Date(paste0("20", year, "-", month, "-", day))) %>%
     select(-month, -day) %>%
     mutate(metric = "confirmed")
 
