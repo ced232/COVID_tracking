@@ -19,7 +19,7 @@ library(viridis)
 # Constants
 # ----------
 
-date_title <- "January 3rd"
+date_title <- "January 8th"
 customPal <- magma(10)[c(10,8,6)]
 
 
@@ -29,7 +29,7 @@ customPal <- magma(10)[c(10,8,6)]
 
 # import time series data:
 
-confirmed_data <- read.csv("confirmed_2021_1_3.csv", stringsAsFactors = FALSE)  %>%
+confirmed_data <- read.csv("confirmed_2021_1_8.csv", stringsAsFactors = FALSE)  %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                  "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key) %>%
@@ -37,7 +37,7 @@ confirmed_data <- read.csv("confirmed_2021_1_3.csv", stringsAsFactors = FALSE)  
     group_by(state) %>%
     summarise_all(list(sum = sum))
 
-deaths_data <- read.csv("deaths_2021_1_3.csv", stringsAsFactors = FALSE) %>%
+deaths_data <- read.csv("deaths_2021_1_8.csv", stringsAsFactors = FALSE) %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key, -Population) %>%
@@ -85,11 +85,13 @@ confirmed_pca <- data.frame(state = confirmed_daily_data$state,
                             PC1 = confirmed_prcomp$x[, 1],
                             PC2 = confirmed_prcomp$x[, 2],
                             PC3 = confirmed_prcomp$x[, 3],
-                            PC4 = confirmed_prcomp$x[, 4]) %>%
+                            PC4 = confirmed_prcomp$x[, 4],
+                            PC5 = confirmed_prcomp$x[, 5]) %>%
     mutate(PC1 = scale(PC1)) %>%
     mutate(PC2 = scale(PC2)) %>%
     mutate(PC3 = scale(PC3)) %>%
-    mutate(PC4 = scale(PC4)) 
+    mutate(PC4 = scale(PC4)) %>%
+    mutate(PC5 = scale(PC5)) 
 
 # visualize cumulative variance:
 
@@ -134,7 +136,7 @@ var_plot
 # visualize PC rotations:
 
 pc_rotations <- as.data.frame(confirmed_prcomp$rotation[,1:8]) %>%
-    mutate(date = as.Date("2020-1-23"):as.Date("2021-1-2")) %>%
+    mutate(date = as.Date("2020-1-23"):as.Date("2021-1-7")) %>%
     mutate(date = as.Date(date, origin = "1970-1-1")) %>%
     gather(pc, value, -date)
 
@@ -173,7 +175,7 @@ pc_rotations_plot
 
 # determine ideal k value:
 
-nb <- NbClust(confirmed_pca[,c(2:5)], distance = "euclidean", min.nc = 2,
+nb <- NbClust(confirmed_pca[,c(2:6)], distance = "euclidean", min.nc = 2,
               max.nc = 20, method = "complete", index ="all")
 fviz_nbclust(nb) + theme_minimal()
 
@@ -182,13 +184,13 @@ k_val <- 3
 # perform k-clustering:
 
 set.seed(125)
-k <- kmeans(confirmed_pca[,c(2:5)], k_val)
+k <- kmeans(confirmed_pca[,c(2:6)], k_val)
 cluster <- factor(k$cluster)
 confirmed_cluster <- cbind(confirmed_pca, cluster) 
 
 # visualize silhouettes:
 
-sil <- silhouette(k$cluster, dist(confirmed_pca[,c(2:5)]))
+sil <- silhouette(k$cluster, dist(confirmed_pca[,c(2:6)]))
 sort_sil <- sortSilhouette(sil)
 
 sil_df <- as.data.frame(sort_sil[,1:3]) %>%
