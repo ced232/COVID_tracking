@@ -19,7 +19,7 @@ library(viridis)
 # Constants
 # ----------
 
-date_title <- "January 22nd"
+date_title <- "January 24th"
 customPal <- magma(10)[c(10,8,6)]
 
 
@@ -29,7 +29,7 @@ customPal <- magma(10)[c(10,8,6)]
 
 # import time series data:
 
-confirmed_data <- read.csv("confirmed_2021_1_22.csv", stringsAsFactors = FALSE)  %>%
+confirmed_data <- read.csv("confirmed_2021_1_24.csv", stringsAsFactors = FALSE)  %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                  "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key) %>%
@@ -37,7 +37,7 @@ confirmed_data <- read.csv("confirmed_2021_1_22.csv", stringsAsFactors = FALSE) 
     group_by(state) %>%
     summarise_all(list(sum = sum))
 
-deaths_data <- read.csv("deaths_2021_1_22.csv", stringsAsFactors = FALSE) %>%
+deaths_data <- read.csv("deaths_2021_1_24.csv", stringsAsFactors = FALSE) %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key, -Population) %>%
@@ -136,7 +136,7 @@ var_plot
 # visualize PC rotations:
 
 pc_rotations <- as.data.frame(confirmed_prcomp$rotation[,1:8]) %>%
-    mutate(date = as.Date("2020-1-23"):as.Date("2021-1-21")) %>%
+    mutate(date = as.Date("2020-1-23"):as.Date("2021-1-23")) %>%
     mutate(date = as.Date(date, origin = "1970-1-1")) %>%
     gather(pc, value, -date)
 
@@ -313,6 +313,7 @@ trends_plot <- full_plot %>%
     ggtitle("\nUS Covid-19 Trends by State Group",
             subtitle = date_title) +
     geom_hline(yintercept = 0, size = .5, color = "gray45") +
+    geom_vline(xintercept = as.Date("2021-1-1"), size = .8, color = "gray45") +
     geom_smooth(aes(color = cluster), se = FALSE, span = .1, size = .8) +
     scale_color_manual(name = "Group",
                        values = customPal, 
