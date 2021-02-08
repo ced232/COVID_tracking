@@ -19,7 +19,7 @@ library(viridis)
 # Constants
 # ----------
 
-date_title <- "January 24th"
+date_title <- "February 7th"
 customPal <- magma(10)[c(10,8,6)]
 
 
@@ -29,7 +29,7 @@ customPal <- magma(10)[c(10,8,6)]
 
 # import time series data:
 
-confirmed_data <- read.csv("confirmed_2021_1_24.csv", stringsAsFactors = FALSE)  %>%
+confirmed_data <- read.csv("confirmed_2021_2_7.csv", stringsAsFactors = FALSE)  %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                  "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key) %>%
@@ -37,7 +37,7 @@ confirmed_data <- read.csv("confirmed_2021_1_24.csv", stringsAsFactors = FALSE) 
     group_by(state) %>%
     summarise_all(list(sum = sum))
 
-deaths_data <- read.csv("deaths_2021_1_24.csv", stringsAsFactors = FALSE) %>%
+deaths_data <- read.csv("deaths_2021_2_7.csv", stringsAsFactors = FALSE) %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key, -Population) %>%
@@ -136,7 +136,7 @@ var_plot
 # visualize PC rotations:
 
 pc_rotations <- as.data.frame(confirmed_prcomp$rotation[,1:8]) %>%
-    mutate(date = as.Date("2020-1-23"):as.Date("2021-1-23")) %>%
+    mutate(date = as.Date("2020-1-23"):as.Date("2021-2-6")) %>%
     mutate(date = as.Date(date, origin = "1970-1-1")) %>%
     gather(pc, value, -date)
 
@@ -276,7 +276,7 @@ deaths_cluster_section <- confirmed_cluster %>%
     mutate(day = strsplit(date, ".", fixed = TRUE)[[1]][2]) %>%
     mutate(year = strsplit(date, ".", fixed = TRUE)[[1]][3]) %>%
     mutate(date = as.Date(paste0("20", year, "-", month, "-", day))) %>%
-    select(-month, -day) %>%
+    select(-year, -month, -day) %>%
     mutate(metric = "deaths")
 
 confirmed_cluster_section <- confirmed_cluster %>%
@@ -294,7 +294,7 @@ confirmed_cluster_section <- confirmed_cluster %>%
     mutate(day = strsplit(date, ".", fixed = TRUE)[[1]][2]) %>%
     mutate(year = strsplit(date, ".", fixed = TRUE)[[1]][3]) %>%
     mutate(date = as.Date(paste0("20", year, "-", month, "-", day))) %>%
-    select(-month, -day) %>%
+    select(-year, -month, -day) %>%
     mutate(metric = "confirmed")
 
 full_plot <- rbind(confirmed_cluster_section, deaths_cluster_section) 
