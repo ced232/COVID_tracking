@@ -20,9 +20,9 @@ library(viridis)
 # Constants
 # ----------
 
-date_title <- "April 7th"
-end_date <- as.Date("2021-4-6")
-customPal <- c(magma(10)[c(10,8,6,4)], "white", "gray60", "gray30", "red")
+date_title <- "April 13th"
+end_date <- as.Date("2021-4-12")
+customPal <- c(magma(20)[c(20,17,14,11,8)], "white", "gray60", "gray30", "red")
 
 
 # ----------
@@ -31,7 +31,7 @@ customPal <- c(magma(10)[c(10,8,6,4)], "white", "gray60", "gray30", "red")
 
 # import time series data:
 
-confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_4_7.csv", stringsAsFactors=FALSE)  %>%
+confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_4_13.csv", stringsAsFactors=FALSE)  %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key) %>%
@@ -39,7 +39,7 @@ confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_4_7.csv", string
     group_by(state) %>%
     summarise_all(list(sum = sum))
 
-deaths_data <- read.csv("~/git/covid_tracking/deaths_2021_4_7.csv", stringsAsFactors = FALSE) %>%
+deaths_data <- read.csv("~/git/covid_tracking/deaths_2021_4_13.csv", stringsAsFactors = FALSE) %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key, -Population) %>%
@@ -156,14 +156,14 @@ outlier_plot
 
 # selected threshold, determine outlier dates with that threshold
 
-i <- 12
+i <- 38
 
 for (j in confirmed_cluster$state) {
     c <- confirmed_daily_data %>%
         filter(state == j) %>%
         select(-state, -pop) %>%
         gather(date, value) %>%
-        mutate(date = as.Date("2020-1-23"):as.Date("2021-4-6")) %>%
+        mutate(date = as.Date("2020-1-23"):end_date)) %>%
         mutate(date = as.Date(date, origin = "1970-1-1"))
     ws <- c()
     
@@ -254,8 +254,11 @@ var_plot
 
 # visualize PC rotations:
 
+included_dates <- as.Date("2020-1-23"):end_date
+included_dates <- included_dates[!(included_dates %in% outlier_dates)]
+
 pc_rotations <- as.data.frame(confirmed_prcomp$rotation[,1:8]) %>%
-    mutate(date = as.Date("2020-1-23"):(end_date - length(ws2))) %>%
+    mutate(date = included_dates) %>%
     mutate(date = as.Date(date, origin = "1970-1-1")) %>%
     gather(pc, value, -date)
 
@@ -274,6 +277,7 @@ pc_rotations_plot <- pc_rotations %>%
     scale_x_date(name = "\n\n", date_breaks = "2 months", date_labels = "%b") +
     theme_minimal() +
     theme(panel.grid.minor.x = element_blank(),
+          panel.grid.major.y = element_blank(),
           text = element_text(color = "white", family = "Avenir"), 
           axis.text = element_text(color = "white"),
           axis.title.y = element_text(angle = 0, vjust = .5, hjust = 1),
@@ -336,7 +340,7 @@ for (pcs in 2:8) {
 
 grid_df <- data.frame(pcs = pcs_col, k_val = k_val_col, error)
 
-# selected values:
+# (selected values)
 selected <- c(4, 6)
 
 grid_plot <- grid_df %>%
@@ -382,10 +386,18 @@ grid_plot
 
 set.seed(125)
 k <- kmeans(confirmed_pca[,c(2:(selected[1]+1))], selected[2])
-cluster <- factor(k$cluster)
-confirmed_cluster <- cbind(confirmed_pca, cluster) 
 
-sil <- silhouette(k$cluster, dist(confirmed_pca[,c(2:(selected[1]+1))]))
+# (reassign cluster numbers for consistency over time)
+cluster2 <- case_when(k$cluster == 1 ~ 1,
+                      k$cluster == 2 ~ 5,
+                      k$cluster == 3 ~ 4,
+                      k$cluster == 4 ~ 2,
+                      k$cluster == 5 ~ 6,
+                      k$cluster == 6 ~ 3)
+cluster <- factor(cluster2)
+confirmed_cluster <- cbind(confirmed_pca, cluster)
+
+sil <- silhouette(cluster2, dist(confirmed_pca[,c(2:(selected[1]+1))]))
 sort_sil <- sortSilhouette(sil)
 
 sil_df <- as.data.frame(sort_sil[,1:3]) %>%
