@@ -20,8 +20,8 @@ library(viridis)
 # Constants
 # ----------
 
-date_title <- "April 13th"
-end_date <- as.Date("2021-4-12")
+date_title <- "April 14th"
+end_date <- as.Date("2021-4-13")
 customPal <- c(magma(20)[c(20,17,14,11,8)], "white", "gray60", "gray30", "red")
 
 
@@ -31,7 +31,7 @@ customPal <- c(magma(20)[c(20,17,14,11,8)], "white", "gray60", "gray30", "red")
 
 # import time series data:
 
-confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_4_13.csv", stringsAsFactors=FALSE)  %>%
+confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_4_14.csv", stringsAsFactors=FALSE)  %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key) %>%
@@ -39,7 +39,7 @@ confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_4_13.csv", strin
     group_by(state) %>%
     summarise_all(list(sum = sum))
 
-deaths_data <- read.csv("~/git/covid_tracking/deaths_2021_4_13.csv", stringsAsFactors = FALSE) %>%
+deaths_data <- read.csv("~/git/covid_tracking/deaths_2021_4_14.csv", stringsAsFactors = FALSE) %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key, -Population) %>%
@@ -391,9 +391,9 @@ k <- kmeans(confirmed_pca[,c(2:(selected[1]+1))], selected[2])
 cluster2 <- case_when(k$cluster == 1 ~ 1,
                       k$cluster == 2 ~ 5,
                       k$cluster == 3 ~ 4,
-                      k$cluster == 4 ~ 2,
+                      k$cluster == 4 ~ 3,
                       k$cluster == 5 ~ 6,
-                      k$cluster == 6 ~ 3)
+                      k$cluster == 6 ~ 2)
 cluster <- factor(cluster2)
 confirmed_cluster <- cbind(confirmed_pca, cluster)
 
