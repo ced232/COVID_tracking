@@ -20,9 +20,9 @@ library(viridis)
 # Constants
 # ----------
 
-date_title <- "April 14th"
-end_date <- as.Date("2021-4-13")
-customPal <- c(magma(20)[c(20,17,14,11,8)], "white", "gray60", "gray30", "red")
+date_title <- "April 15th"
+end_date <- as.Date("2021-4-14")
+customPal <- c(magma(20)[c(20,16,12,9)], "#244999", "#8AAFFF")
 
 
 # ----------
@@ -31,7 +31,7 @@ customPal <- c(magma(20)[c(20,17,14,11,8)], "white", "gray60", "gray30", "red")
 
 # import time series data:
 
-confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_4_14.csv", stringsAsFactors=FALSE)  %>%
+confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_4_15.csv", stringsAsFactors=FALSE)  %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key) %>%
@@ -39,7 +39,7 @@ confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_4_14.csv", strin
     group_by(state) %>%
     summarise_all(list(sum = sum))
 
-deaths_data <- read.csv("~/git/covid_tracking/deaths_2021_4_14.csv", stringsAsFactors = FALSE) %>%
+deaths_data <- read.csv("~/git/covid_tracking/deaths_2021_4_15.csv", stringsAsFactors = FALSE) %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key, -Population) %>%
@@ -163,7 +163,7 @@ for (j in confirmed_cluster$state) {
         filter(state == j) %>%
         select(-state, -pop) %>%
         gather(date, value) %>%
-        mutate(date = as.Date("2020-1-23"):end_date)) %>%
+        mutate(date = as.Date("2020-1-23"):end_date) %>%
         mutate(date = as.Date(date, origin = "1970-1-1"))
     ws <- c()
     
