@@ -20,8 +20,8 @@ library(viridis)
 # Constants
 # ----------
 
-date_title <- "April 15th"
-end_date <- as.Date("2021-4-14")
+date_title <- "April 21st"
+end_date <- as.Date("2021-4-20")
 customPal <- c(magma(20)[c(20,16,12,9)], "#244999", "#8AAFFF")
 
 
@@ -31,7 +31,7 @@ customPal <- c(magma(20)[c(20,16,12,9)], "#244999", "#8AAFFF")
 
 # import time series data:
 
-confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_4_15.csv", stringsAsFactors=FALSE)  %>%
+confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_4_21.csv", stringsAsFactors=FALSE)  %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key) %>%
@@ -39,7 +39,7 @@ confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_4_15.csv", strin
     group_by(state) %>%
     summarise_all(list(sum = sum))
 
-deaths_data <- read.csv("~/git/covid_tracking/deaths_2021_4_15.csv", stringsAsFactors = FALSE) %>%
+deaths_data <- read.csv("~/git/covid_tracking/deaths_2021_4_21.csv", stringsAsFactors = FALSE) %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key, -Population) %>%
@@ -71,333 +71,162 @@ for (i in 3:j) {
     deaths_daily_data[,i] <- deaths_daily_data[,i]/deaths_daily_data[,2]
 }
 
+#convert from wide to long form, format dates:
+
+cases_by_state <- confirmed_daily_data %>%
+    select(-pop) %>%
+    group_by(state) %>%
+    mutate(cases = 1000000*cases) %>%
+    gather(date, cases, -state) %>%
+    rowwise() %>%
+    mutate(date = gsub("X", "", date)) %>%
+    mutate(date = gsub("_sum.1", "", date)) %>%
+    mutate(month = strsplit(date, ".", fixed = TRUE)[[1]][1]) %>%
+    mutate(day = strsplit(date, ".", fixed = TRUE)[[1]][2]) %>%
+    mutate(year = strsplit(date, ".", fixed = TRUE)[[1]][3]) %>%
+    mutate(date = as.Date(paste0("20", year, "-", month, "-", day))) %>%
+    select(-year, -month, -day) 
+
 
 # ----------
-# Outliers
+# Locate Peaks
 # ----------
 
-# determine number of outlier dates by size of sliding window:
+# find standard deviation of smoothed daily confirmed cases among all states on each date:
 
-window <- c()
-outliers <- c()
+date_range <- as.Date("2020-1-23"):end_date
+state <- c()
+date <- c()
+cases <- c()
+dates <- c(1:length(date_range))
 
-for (i in 5:100) {
-    ws2 <- c()
+for (i in confirmed_daily_data$state) {
+    loess_data <- cases_by_state %>%
+        filter(state == i) %>%
+        select(date, cases)
     
-    for (j in confirmed_cluster$state) {
-        c <- confirmed_daily_data %>%
-            filter(state == j) %>%
-            select(-state, -pop) %>%
-            gather(date, value) %>%
-            mutate(date = as.Date("2020-1-23"):end_date) %>%
-            mutate(date = as.Date(date, origin = "1970-1-1"))
-        
-        ws <- c()
-        
-        for (k in 1:(nrow(c) - i)) {
-            c_subset <- c$value[k:(k + i - 1)]
-            q3 <- fivenum(c_subset)[4]
-            q1 <- fivenum(c_subset)[2]
-            IQR <- q3 - q1
-            
-            w <- c(which(c_subset > q3 + 1.5*IQR), which(c_subset < q1 - 1.5*IQR))
-            ws <- c(ws, w + k)
+    loess_data$index <- 1:nrow(loess_data)
+    
+    loess_fit <- loess(cases ~ index, loess_data, span = 0.1)
+    
+    loess_fit_df <- data.frame(index = 1:nrow(loess_data), fitted = loess_fit$fitted)
+    
+    state <-  c(state, rep(i, length(dates)))
+    
+    for (j in 1:length(dates)) {
+        date <- c(date, j)
+        cases <- c(cases, loess_fit_df$fitted[loess_fit_df$index == dates[j]])
+    }
+}
+
+sd_df <- data.frame(state, date = as.Date(date_range[date], origin = "1970-1-1"), cases) %>%
+    group_by(date) %>%
+    select(date, cases) %>%
+    summarise_all(list(sd = sd))
+
+# locate local maxima:
+
+candidates <- c()
+
+for (i in 2:(nrow(sd_df) - 1)) {
+    if (sd_df$sd[i - 1] < sd_df$sd[i]) {
+        if (sd_df$sd[i + 1] < sd_df$sd[i]) {
+            candidates <- c(candidates, i)
         }
     }
-    
-    window <- c(window, i)
-    ws2 <- c(ws2, unique(ws))
-    outliers <- c(outliers, length(ws2))
-    
-    print(i)
-    
 }
 
-outlier_df <- data.frame(window, outliers)
+candidate_dates <- as.Date(date_range[candidates], origin = "1970-1-1")
+candidate_dates
 
-# visualize relationship between window size and number of outlier dates:
+# select from candidate peaks graphically:
 
-outlier_plot <- outlier_df %>%
-    ggplot(aes(x = window, y = outliers)) +
-    ggtitle("\nWindow Size for Outlier Detection",
+selected_candidates <- c(80, 178, 296, 351, 440) 
+
+selected_dates <- as.Date(date_range[selected_candidates], origin = "1970-1-1")
+
+selected <- factor(ifelse(candidates %in% selected_candidates, "selected", "not selected"),
+                   levels = c("selected", "not selected"))
+
+selected_df <- data.frame(candidates = as.Date(date_range[candidates], origin = "1970-1-1"), selected)
+
+peak_plot <- ggplot() +
+    ggtitle("\nSelecting from Candidate Peaks",
             subtitle = paste0(date_title, "\n")) +
-    geom_line(color = plasma(10)[4]) +
-    geom_smooth(color = "white", size = .8, span = .1, se = FALSE) +
-    scale_x_continuous(name = "\nwindow size\n",
-                       limits = c(0, 100),
-                       breaks = seq(0, 100, 20)) +
-    scale_y_continuous(name = "dates \nwith \noutliers ",
-                       limits = c(0, 100),
-                       breaks = seq(0, 100, 25)) +
-    geom_hline(yintercept = 0, color = "white", size = .8) +
-    geom_vline(xintercept = 0, color = "white", size = .8) +
-    theme(panel.grid.minor.y = element_blank(),
-          panel.grid.minor.x = element_line(color = "gray30"),
-          panel.grid.major.y = element_line(color = "gray40"),
-          panel.grid.major.x = element_line(color = "gray50"),
-          text = element_text(color = "white", family = "Avenir"), 
-          strip.text = element_text(color = "white", family = "Avenir Black", size = 12, hjust = 0),
-          axis.text = element_text(color = "white"),
-          axis.title.y = element_text(size = 10, angle = 0, vjust = .5, hjust = 1),
-          plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
-          plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
-          panel.background = element_rect(fill = "black"),
-          #panel.border = element_rect(fill = NA, color = "white", size = 1),
-          plot.background = element_rect(fill = "black", color = "black"), 
-          legend.title = element_text(size = 10),
-          legend.background = element_rect(fill = "black"), 
-          legend.key = element_rect(fill = "black"),
-          legend.key.size = unit(.6, "cm"),
-          legend.text = element_text(size = 8),
-          legend.position = "none",
-          plot.margin = unit(c(5.5, 33, 5.5, 5.5), "pt"))
-
-outlier_plot
-
-# selected threshold, determine outlier dates with that threshold
-
-i <- 38
-
-for (j in confirmed_cluster$state) {
-    c <- confirmed_daily_data %>%
-        filter(state == j) %>%
-        select(-state, -pop) %>%
-        gather(date, value) %>%
-        mutate(date = as.Date("2020-1-23"):end_date) %>%
-        mutate(date = as.Date(date, origin = "1970-1-1"))
-    ws <- c()
-    
-    for (k in 1:(nrow(c) - i)) {
-        c_subset <- c$value[k:(k + i - 1)]
-        q3 <- fivenum(c_subset)[4]
-        q1 <- fivenum(c_subset)[2]
-        IQR <- q3 - q1
-        
-        w <- c(which(c_subset > q3 + 1.5*IQR), which(c_subset < q1 - 1.5*IQR))
-        ws <- c(ws, w + k)
-    }
-}
-
-ws2 <- unique(ws)
-
-outlier_dates <- c$date[ws2]
-
-
-# ----------
-# Principal Component Analysis
-# ----------
-
-# run PCA:
-
-set.seed(125)
-confirmed_prcomp <- confirmed_daily_data[,-(ws2 + 2)] %>%
-    select(-state, -pop) %>%
-    prcomp()
-
-confirmed_pca <- data.frame(state = confirmed_daily_data$state,
-                            PC1 = confirmed_prcomp$x[, 1],
-                            PC2 = confirmed_prcomp$x[, 2],
-                            PC3 = confirmed_prcomp$x[, 3],
-                            PC4 = confirmed_prcomp$x[, 4],
-                            PC5 = confirmed_prcomp$x[, 5],
-                            PC6 = confirmed_prcomp$x[, 6],
-                            PC7 = confirmed_prcomp$x[, 7],
-                            PC8 = confirmed_prcomp$x[, 8]) %>%
-    mutate(PC1 = scale(PC1)) %>%
-    mutate(PC2 = scale(PC2)) %>%
-    mutate(PC3 = scale(PC3)) %>%
-    mutate(PC4 = scale(PC4)) %>%
-    mutate(PC5 = scale(PC5)) %>%
-    mutate(PC6 = scale(PC6)) %>%
-    mutate(PC7 = scale(PC7)) %>%
-    mutate(PC8 = scale(PC8))
-
-# visualize cumulative variance:
-
-pca_var <- data.frame(PC = 0:8,
-                      var = c(0, as.vector(summary(confirmed_prcomp)$importance[3,1:8])))
-
-var_plot <- ggplot(pca_var, aes(x = PC, y = var)) +
-    ggtitle("\nPrinciple Component Importance",
-            subtitle = paste0(date_title, "\n")) +
-    geom_line(color = plasma(10)[4], size = .8) +
-    scale_x_continuous(name = "\nPC\n",
-                       limits = c(0, 8),
-                       breaks = seq(0, 8, 2)) +
-    scale_y_continuous(name = "cumulative \nproportion \nof variance ",
-                       limits = c(0, 1),
-                       breaks = seq(0, 1, .25)) +
-    geom_hline(yintercept = 0, color = "white", size = .8) +
-    geom_vline(xintercept = 0, color = "white", size = .8) +
-    theme(panel.grid.minor.y = element_blank(),
-          panel.grid.minor.x = element_line(color = "gray30"),
-          panel.grid.major.y = element_line(color = "gray40"),
-          panel.grid.major.x = element_line(color = "gray50"),
-          text = element_text(color = "white", family = "Avenir"), 
-          strip.text = element_text(color = "white", family = "Avenir Black", size = 12, hjust = 0),
-          axis.text = element_text(color = "white"),
-          axis.title.y = element_text(size = 10, angle = 0, vjust = .5, hjust = 1),
-          plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
-          plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
-          panel.background = element_rect(fill = "black"),
-          #panel.border = element_rect(fill = NA, color = "white", size = 1),
-          plot.background = element_rect(fill = "black", color = "black"), 
-          legend.title = element_text(size = 10),
-          legend.background = element_rect(fill = "black"), 
-          legend.key = element_rect(fill = "black"),
-          legend.key.size = unit(.6, "cm"),
-          legend.text = element_text(size = 8),
-          legend.position = "none",
-          plot.margin = unit(c(5.5, 33, 5.5, 5.5), "pt"))
-
-var_plot
-
-# visualize PC rotations:
-
-included_dates <- as.Date("2020-1-23"):end_date
-included_dates <- included_dates[!(included_dates %in% outlier_dates)]
-
-pc_rotations <- as.data.frame(confirmed_prcomp$rotation[,1:8]) %>%
-    mutate(date = included_dates) %>%
-    mutate(date = as.Date(date, origin = "1970-1-1")) %>%
-    gather(pc, value, -date)
-
-r <- range(pc_rotations$value)
-rlim <- max(abs(r))
-
-pc_rotations_plot <- pc_rotations %>%
-    ggplot(aes(x = date, y = pc)) +
-    ggtitle("\nPrinciple Component Rotations",
-            subtitle = paste0(date_title, "\n")) +
-    geom_tile(aes(fill = value)) +
-    scale_fill_gradientn(name = "Rotation", limits = c(-rlim, rlim), 
-                         colours = c("#B2182B","White","#244999")) +
-    scale_y_discrete(name = "principal \ncomponent ", 
-                     limits = rev(names(as.data.frame(confirmed_prcomp$rotation[,1:8])))) +
-    scale_x_date(name = "\n\n", date_breaks = "2 months", date_labels = "%b") +
+    geom_area(data = sd_df, aes(x = date, y = sd), fill = plasma(10)[4]) +
+    geom_segment(data = selected_df, aes(x = candidates, xend = candidates, color = selected), y = 0, yend = Inf) +
+    geom_hline(yintercept = 0, size = .5, color = "gray45") +
+    scale_x_date(name = "\ndate", date_breaks = "2 months", date_labels = "%b") +
+    scale_y_continuous(name = "standard  \ndeviation in  \ndaily cases  \nper million  ") +
+    scale_color_manual(name = "Candidate\nPeaks", values = c("white", "gray35")) +
     theme_minimal() +
-    theme(panel.grid.minor.x = element_blank(),
-          panel.grid.major.y = element_blank(),
+    theme(panel.grid.minor = element_blank(),
+          panel.grid.major = element_blank(),
           text = element_text(color = "white", family = "Avenir"), 
+          strip.text = element_text(color = "white", family = "Avenir Black", size = 12, hjust = 0),
           axis.text = element_text(color = "white"),
-          axis.title.y = element_text(angle = 0, vjust = .5, hjust = 1),
+          axis.title.y = element_text(size = 10, angle = 0, vjust = .5, hjust = 1),
           plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
           plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
+          panel.background = element_rect(fill = "gray10"),
+          panel.border = element_rect(fill = NA, color = "gray45", size = 1),
           plot.background = element_rect(fill = "black", color = "black"), 
+          legend.title = element_text(size = 10),
           legend.background = element_rect(fill = "black"), 
           legend.key = element_rect(fill = "black"),
           legend.key.size = unit(.6, "cm"),
           legend.text = element_text(size = 8))
 
-pc_rotations_plot
+peak_plot
 
 
 # ----------
 # Clustering
 # ----------
 
-# grid search for ideal k and number of PC's to include:
+# measure each state's daily confirmed cases at each peak:
 
-pcs_col <- c()
-k_val_col <- c()
-error <- c()
+state <- c()
+peak <- c()
+cases <- c()
 
-for (pcs in 2:8) {
-    for (k_val in 2:6) {
-        set.seed(125)
-        k <- kmeans(confirmed_pca[,c(2:(pcs+1))], k_val)
-        cluster <- factor(k$cluster)
-        confirmed_cluster <- cbind(confirmed_pca, cluster)
-        
-        cluster_sd <- confirmed_cluster %>%
-            select(state, cluster) %>%
-            left_join(., confirmed_daily_data, by = "state") %>%
-            select(-state, -pop) %>%
-            group_by(cluster) %>%
-            summarise_all(list(sd = sd)) %>%
-            gather(date, cases, -cluster) %>%
-            mutate(cases = 1000000*cases) %>%
-            rowwise() %>%
-            mutate(date = gsub("X", "", date)) %>%
-            mutate(date = gsub("_sum.1_sd", "", date)) %>%
-            mutate(month = strsplit(date, ".", fixed = TRUE)[[1]][1]) %>%
-            mutate(day = strsplit(date, ".", fixed = TRUE)[[1]][2]) %>%
-            mutate(year = strsplit(date, ".", fixed = TRUE)[[1]][3]) %>%
-            mutate(date = as.Date(paste0("20", year, "-", month, "-", day))) %>%
-            select(-year, -month, -day) %>%
-            filter(!(is.na(cases))) %>%
-            group_by(date) %>%
-            mutate(cluster = NA) %>%
-            summarise_all(list(mean = mean)) %>%
-            select(date, cases_mean) %>%
-            summarise(sum(cases_mean))
-        
-        pcs_col <- c(pcs_col, pcs)
-        k_val_col <- c(k_val_col, k_val)
-        error <- c(error, as.numeric(cluster_sd))
+for (i in confirmed_daily_data$state) {
+    loess_data <- cases_by_state %>%
+        filter(state == i) %>%
+        select(date, cases)
+    
+    loess_data$index <- 1:nrow(loess_data)
+    
+    loess_fit <- loess(cases ~ index, loess_data, span = 0.1)
+    
+    loess_fit_df <- data.frame(index = 1:nrow(loess_data), fitted = loess_fit$fitted)
+    
+    state <-  c(state, rep(i, length(selected_candidates)))
+    
+    for (j in 1:length(selected_candidates)) {
+        peak <- c(peak, paste0("peak_", j))
+        cases <- c(cases, loess_fit_df$fitted[loess_fit_df$index == selected_candidates[j]])
     }
 }
 
-grid_df <- data.frame(pcs = pcs_col, k_val = k_val_col, error)
+peaks_df <- data.frame(state, peak, cases) %>%
+    spread(peak, cases)
 
-# (selected values)
-selected <- c(4, 6)
+peaks_df <- cbind(state = peaks_df$state, as.data.frame(scale(peaks_df[2:ncol(peaks_df)])))
 
-grid_plot <- grid_df %>%
-    mutate(error = round(error)) %>%
-    ggplot(aes(x = pcs, y = k_val)) +
-    ggtitle("\nGrid Search Clustering Optimization",
-            subtitle = paste0(date_title, "\n")) +
-    geom_tile(aes(fill = error)) +
-    geom_text(aes(label = error)) +
-    geom_segment(x = selected[1] - .5, xend = selected[1] + .5, 
-                 y = selected[2] + .5, yend = selected[2] + .5,
-                 color = "white", size = .8) +
-    geom_segment(x = selected[1] - .5, xend = selected[1] + .5, 
-                 y = selected[2] - .5, yend = selected[2] - .5,
-                 color = "white", size = .8) +
-    geom_segment(x = selected[1] + .5, xend = selected[1] + .5, 
-                 y = selected[2] - .5, yend = selected[2] + .5,
-                 color = "white", size = .8) +
-    geom_segment(x = selected[1] - .5, xend = selected[1] - .5, 
-                 y = selected[2] - .5, yend = selected[2] + .5,
-                 color = "white", size = .8) +
-    scale_y_continuous(name = "number \nof \nclusters ",
-                       breaks = seq(2,6,2)) +
-    scale_x_continuous(name = "\nnumber of PC's included\n") +
-    scale_fill_gradientn(name = "Mean\nIntra-cluster\nDeviance",
-                         colours = c(plasma(10)[4], "White")) +
-    theme_minimal() +
-    theme(panel.grid.minor = element_blank(),
-          text = element_text(color = "white", family = "Avenir"), 
-          axis.text = element_text(color = "white"),
-          axis.title.y = element_text(angle = 0, vjust = .5, hjust = 1),
-          plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
-          plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
-          plot.background = element_rect(fill = "black", color = "black"), 
-          legend.background = element_rect(fill = "black"), 
-          legend.key = element_rect(fill = "black"),
-          legend.key.size = unit(.6, "cm"),
-          legend.text = element_text(size = 8))
+# select K value:
 
-grid_plot
+k_val <- 5
 
 # validate using silhouettes:
 
 set.seed(125)
-k <- kmeans(confirmed_pca[,c(2:(selected[1]+1))], selected[2])
-
-# (reassign cluster numbers for consistency over time)
-cluster2 <- case_when(k$cluster == 1 ~ 1,
-                      k$cluster == 2 ~ 5,
-                      k$cluster == 3 ~ 4,
-                      k$cluster == 4 ~ 3,
-                      k$cluster == 5 ~ 6,
-                      k$cluster == 6 ~ 2)
+k <- kmeans(peaks_df[,c(2:(length(selected_candidates) + 1))], k_val)
+cluster2 <- k$cluster
 cluster <- factor(cluster2)
-confirmed_cluster <- cbind(confirmed_pca, cluster)
+confirmed_cluster <- cbind(peaks_df, cluster)
 
-sil <- silhouette(cluster2, dist(confirmed_pca[,c(2:(selected[1]+1))]))
+sil <- silhouette(cluster2, dist(peaks_df[,c(2:(length(selected_candidates) + 1))]))
 sort_sil <- sortSilhouette(sil)
 
 sil_df <- as.data.frame(sort_sil[,1:3]) %>%
@@ -434,7 +263,9 @@ sil_plot <- sil_df%>%
 
 sil_plot
 
-# visualize state clusters map:
+# ----------
+# State Clusters Map
+# ----------
 
 state_abbr <- read.csv("state_fips.csv", stringsAsFactors = FALSE)
 
@@ -466,7 +297,9 @@ confirmed_cluster_map <- plot_usmap(data = state_data, values = "cluster", color
 
 confirmed_cluster_map
 
-# visualize trends by cluster:
+# ----------
+# Trends By State Cluster
+# ----------
 
 deaths_cluster_section <- confirmed_cluster %>%
     select(state, cluster) %>%
@@ -520,7 +353,7 @@ trends_plot <- full_plot %>%
     ggtitle("\nUS COVID-19 Trends by State Cluster",
             subtitle = date_title) +
     geom_hline(yintercept = 0, size = .5, color = "gray45") +
-    geom_vline(xintercept = as.Date("2021-1-1"), size = .8, color = "gray45") +
+    geom_vline(xintercept = as.Date(selected_dates), size = .8, color = "white") +
     geom_smooth(aes(color = cluster), se = FALSE, span = .1, size = .8) +
     scale_color_manual(name = "Group",
                        values = customPal, 
@@ -551,7 +384,102 @@ trends_plot <- full_plot %>%
 
 trends_plot
 
+# ----------
+# Heat Map
+# ----------
 
+# measure each cluster's mean daily confirmed cases at each peak:
+
+cluster <- c()
+peak <- c()
+cases <- c()
+
+for (i in 1:length(selected_candidates)) {
+    loess_data <- confirmed_cluster_section %>%
+        filter(cluster == i) %>%
+        select(date, cases)
+    
+    loess_data$index <- 1:nrow(loess_data)
+    
+    loess_fit <- loess(cases ~ index, loess_data, span = 0.1)
+    
+    loess_fit_df <- data.frame(index = 1:nrow(loess_data), fitted = loess_fit$fitted)
+    
+    cluster <-  c(cluster, rep(i, length(selected_candidates)))
+    
+    for (j in 1:length(selected_candidates)) {
+        peak <- c(peak, j)
+        cases <- c(cases, loess_fit_df$fitted[loess_fit_df$index == selected_candidates[j]])
+    }
+}
+
+# standardize each peak:
+
+df <- data.frame(cluster, peak, cases)
+
+cluster <- c()
+peak <- c()
+cases <- c()
+
+for (i in 1:5) {
+    subset_df <- df %>%
+        filter(peak == i)
+    
+    max_cases <- max(subset_df$cases)
+    min_cases <- 0
+    
+    standardized_cases <- (subset_df$cases - min_cases)/(max_cases - min_cases)
+    
+    cluster <- c(cluster, 1:5)
+    peak <- c(peak, rep(i, 5))
+    cases <- c(cases, standardized_cases)
+}
+
+# plot heatmap:
+
+plot_df <- data.frame(cluster, peak, cases) %>%
+    mutate(peak = factor(peak))
+
+facet_names <- list(
+    "1" = "Spike 1", 
+    "2" = "Spike 2",
+    "3" = "Spike 3",
+    "4" = "Spike 4",
+    "5" = "Spike 5"
+)
+
+facet_labeller <- function(variable,value){
+    return(facet_names[value])
+}
+
+plot_df %>%
+    ggplot(aes(x = 1, y = cluster)) +
+    ggtitle("\nEach Cluster's Contribution to the Five Primary Spikes",
+            subtitle = date_title) +
+    geom_tile(aes(fill = cases)) +
+    scale_y_reverse(name = "", 
+                    breaks = 1:5, 
+                    labels = c("1: The Northeast",
+                               "2: The Midwest\n   and Great Plains",
+                               "3: The South\n   and Southwest",
+                               "4: Michigan",
+                               "5: Pacific Northwest,\n    Northern New England,\n    and Mid-Atlantic")) +
+    scale_fill_gradientn(name = "",
+                         colours = c("White", "#244999")) +
+    facet_wrap(~peak, ncol = length(peaks), labeller = facet_labeller, strip.position = "bottom") +
+    theme_minimal() +
+    theme(panel.grid.minor.x = element_blank(),
+          panel.grid.major = element_blank(),
+          text = element_text(color = "white", family = "Avenir"), 
+          axis.text.y = element_text(color = "white", hjust = 0),
+          axis.text.x = element_blank(),
+          axis.title.y = element_text(angle = 0, vjust = .5, hjust = 1, size = 12),
+          axis.title.x = element_blank(),
+          plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
+          plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
+          plot.background = element_rect(fill = "black", color = "black"), 
+          legend.position = "none",
+          strip.text = element_text(size = 12, color = "white"))
 
 
 
