@@ -22,7 +22,7 @@ library(viridis)
 
 date_title <- "April 21st"
 end_date <- as.Date("2021-4-20")
-customPal <- c(magma(20)[c(20,16,12,9)], "#244999", "#8AAFFF")
+customPal <- c(magma(20)[c(20,16,12,9)], "#8AAFFF")
 
 
 # ----------
@@ -222,7 +222,11 @@ k_val <- 5
 
 set.seed(125)
 k <- kmeans(peaks_df[,c(2:(length(selected_candidates) + 1))], k_val)
-cluster2 <- k$cluster
+cluster2 <- case_when(k$cluster == 1 ~ 1,
+                      k$cluster == 2 ~ 2,
+                      k$cluster == 3 ~ 3,
+                      k$cluster == 4 ~ 5,
+                      k$cluster == 5 ~ 4)
 cluster <- factor(cluster2)
 confirmed_cluster <- cbind(peaks_df, cluster)
 
@@ -462,8 +466,8 @@ plot_df %>%
                     labels = c("1: The Northeast",
                                "2: The Midwest\n   and Great Plains",
                                "3: The South\n   and Southwest",
-                               "4: Michigan",
-                               "5: Pacific Northwest,\n    Northern New England,\n    and Mid-Atlantic")) +
+                               "4: Pacific Northwest,\n    Northern New England,\n    and Mid-Atlantic",
+                               "5: Michigan")) +
     scale_fill_gradientn(name = "",
                          colours = c("White", "#244999")) +
     facet_wrap(~peak, ncol = length(peaks), labeller = facet_labeller, strip.position = "bottom") +
