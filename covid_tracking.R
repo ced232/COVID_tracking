@@ -20,8 +20,8 @@ library(viridis)
 # Constants
 # ----------
 
-date_title <- "July 24th"
-end_date <- as.Date("2021-7-23")
+date_title <- "August 4th"
+end_date <- as.Date("2021-8-3")
 customPal <- magma(8)[3:8]
 redsPal <- c("White", "#ffd2d2", "#ffb4b4", "#ff8c8c", "#ff6464", "#ff4040", "#ff0000", "#dc0000", "#b90000")
 bluesPal <- c("#8cc6ff", "#40a0ff", "#006edc", "#004C96")
@@ -33,7 +33,7 @@ bluesPal <- c("#8cc6ff", "#40a0ff", "#006edc", "#004C96")
 
 # import time series data:
 
-confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_7_24.csv", stringsAsFactors=FALSE)  %>%
+confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_8_4.csv", stringsAsFactors=FALSE)  %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key) %>%
@@ -41,7 +41,7 @@ confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_7_24.csv", strin
     group_by(state) %>%
     summarise_all(list(sum = sum))
 
-deaths_data <- read.csv("~/git/covid_tracking/deaths_2021_7_24.csv", stringsAsFactors = FALSE) %>%
+deaths_data <- read.csv("~/git/covid_tracking/deaths_2021_8_4.csv", stringsAsFactors = FALSE) %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key, -Population) %>%
@@ -147,7 +147,7 @@ candidate_dates
 # select from candidate spikes graphically:
 
 # input:
-selected_candidates <- c(79, 178, 295, 352, 441, 548) 
+selected_candidates <- candidates[c(4,5,7,8,9,10)] 
 # -----
 
 selected_dates <- as.Date(date_range[selected_candidates], origin = "1970-1-1")
@@ -473,7 +473,7 @@ heatmap_plot <- plot_df %>%
     scale_y_reverse(name = "", breaks = 1:5, labels = c("1: The South, Southwest,\n    and California",
                                                         "2: The Midwest\n    and Great Plains",
                                                         "3: Mid-Atlantic, Cascadia,\n    and North New England",
-                                                        "4: Florida and Louisiana",
+                                                        "4: Florida, Louisiana,\n    Alabama and Mississippi",
                                                         "5: The Northeast\n    and Michigan")) +
     scale_fill_gradientn(name = "Share of\nTotal Cases",
                          colours = redsPal) +
