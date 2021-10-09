@@ -1,4 +1,7 @@
 
+
+
+
 # ----------
 # Libraries
 # ----------
@@ -20,8 +23,8 @@ library(viridis)
 # Constants
 # ----------
 
-date_title <- "August 4th"
-end_date <- as.Date("2021-8-3")
+date_title <- "October 8th"
+end_date <- as.Date("2021-10-9")
 customPal <- magma(8)[3:8]
 redsPal <- c("White", "#ffd2d2", "#ffb4b4", "#ff8c8c", "#ff6464", "#ff4040", "#ff0000", "#dc0000", "#b90000")
 bluesPal <- c("#8cc6ff", "#40a0ff", "#006edc", "#004C96")
@@ -33,7 +36,7 @@ bluesPal <- c("#8cc6ff", "#40a0ff", "#006edc", "#004C96")
 
 # import time series data:
 
-confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_8_4.csv", stringsAsFactors=FALSE)  %>%
+confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_10_8.csv", stringsAsFactors=FALSE)  %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key) %>%
@@ -41,7 +44,7 @@ confirmed_data <- read.csv("~/git/covid_tracking/confirmed_2021_8_4.csv", string
     group_by(state) %>%
     summarise_all(list(sum = sum))
 
-deaths_data <- read.csv("~/git/covid_tracking/deaths_2021_8_4.csv", stringsAsFactors = FALSE) %>%
+deaths_data <- read.csv("~/git/covid_tracking/deaths_2021_10_8.csv", stringsAsFactors = FALSE) %>%
     filter(!(Province_State %in% c("American Samoa", "Diamond Princess", "Grand Princess", "Guam", 
                                    "Northern Mariana Islands", "Puerto Rico", "Virgin Islands"))) %>%
     select(-UID, -iso2, -iso3, -code3, -FIPS, -Admin2, -Country_Region, -Lat, -Long_, -Combined_Key, -Population) %>%
@@ -89,40 +92,47 @@ cases_by_state <- confirmed_daily_data %>%
     mutate(date = as.Date(paste0("20", year, "-", month, "-", day))) %>%
     select(-year, -month, -day) 
 
+#convert to weekly:
+
+master_df <- data.frame(state = c(), dates = c(), cases = c())
+
+weekly_cases <- cases_by_state %>%
+    filter(date >= as.Date("2020-1-27"))
+
+for (state_name in names(table(weekly_cases$state))) {
+    state_weekly <- weekly_cases %>%
+        filter(state == state_name)
+    
+    l <- length(state_weekly$date) - length(state_weekly$date)%%7
+    
+    dates <- c()
+    cases <- c()
+    
+    for (i in 1:l) {
+        if ((i-1)%%7 == 0) {
+            dates <- c(dates, state_weekly$date[i])
+            count <- 0
+            
+            for (j in 0:6){
+                count <- count + state_weekly$cases[i+j]
+            }
+            
+            cases <- c(cases, count)
+        }
+    }
+    
+    new_df <- data.frame(state = rep(state_name, length(dates)), dates = as.Date(dates, origin = "1970-1-1"), cases)
+    master_df <- rbind(master_df, new_df)
+}
 
 # ----------
 # Locate Spikes
 # ----------
 
-# find standard deviation of smoothed daily confirmed cases among all states on each date:
+# find standard deviation of weekly confirmed cases among all states on each date:
 
-date_range <- as.Date("2020-1-23"):end_date
-state <- c()
-date <- c()
-cases <- c()
-dates <- c(1:length(date_range))
-
-for (i in confirmed_daily_data$state) {
-    loess_data <- cases_by_state %>%
-        filter(state == i) %>%
-        ungroup(.) %>%
-        select(date, cases)
-    
-    loess_data$index <- 1:nrow(loess_data)
-    
-    loess_fit <- loess(cases ~ index, loess_data, span = 0.1)
-    
-    loess_fit_df <- data.frame(index = 1:nrow(loess_data), fitted = loess_fit$fitted)
-    
-    state <-  c(state, rep(i, length(dates)))
-    
-    for (j in 1:length(dates)) {
-        date <- c(date, j)
-        cases <- c(cases, loess_fit_df$fitted[loess_fit_df$index == dates[j]])
-    }
-}
-
-sd_df <- data.frame(state, date = as.Date(date_range[date], origin = "1970-1-1"), cases) %>%
+sd_df <- master_df %>%
+    rename(date = dates) %>%
     group_by(date) %>%
     select(date, cases) %>%
     summarise_all(list(sd = sd))
@@ -139,23 +149,30 @@ for (i in 2:(nrow(sd_df) - 1)) {
     }
 }
 
-candidates <- c(candidates, length(date_range)) #include the most recent date to catch "ongoing" spikes
+dates <- master_df %>% 
+    filter(state == "Alabama") %>%
+    select(dates)
 
-candidate_dates <- as.Date(date_range[candidates], origin = "1970-1-1")
+dates <- as.vector(dates)[[1]]
+
+candidates <- c(candidates, length(dates)) #include the most recent date to catch "ongoing" spikes
+
+candidate_dates <- dates[candidates] 
+
 candidate_dates
 
 # select from candidate spikes graphically:
 
 # input:
-selected_candidates <- candidates[c(4,5,7,8,9,10)] 
+selected_candidates <- candidates[c(1,3,5,7,8,10)] 
 # -----
 
-selected_dates <- as.Date(date_range[selected_candidates], origin = "1970-1-1")
+selected_dates <- as.Date(dates[selected_candidates], origin = "1970-1-1")
 
 selected <- factor(ifelse(candidates %in% selected_candidates, "selected", "not selected"),
                    levels = c("selected", "not selected"))
 
-selected_df <- data.frame(candidates = as.Date(date_range[candidates], origin = "1970-1-1"), selected)
+selected_df <- data.frame(candidates = as.Date(dates[candidates], origin = "1970-1-1"), selected)
 
 peak_plot <- ggplot() +
     ggtitle("\nSelecting from Candidate Peaks",
@@ -186,7 +203,6 @@ peak_plot <- ggplot() +
 
 peak_plot
 
-
 # ----------
 # Clustering
 # ----------
@@ -197,23 +213,12 @@ state <- c()
 peak <- c()
 cases <- c()
 
-for (i in confirmed_daily_data$state) {
-    loess_data <- cases_by_state %>%
-        filter(state == i) %>%
-        ungroup(.) %>%
-        select(date, cases)
-    
-    loess_data$index <- 1:nrow(loess_data)
-    
-    loess_fit <- loess(cases ~ index, loess_data, span = 0.1)
-    
-    loess_fit_df <- data.frame(index = 1:nrow(loess_data), fitted = loess_fit$fitted)
-    
-    state <-  c(state, rep(i, length(selected_candidates)))
+for (state_name in names(table(weekly_cases$state))) {
+    state <-  c(state, rep(state_name, length(selected_candidates)))
     
     for (j in 1:length(selected_candidates)) {
         peak <- c(peak, paste0("peak_", j))
-        cases <- c(cases, loess_fit_df$fitted[loess_fit_df$index == selected_candidates[j]])
+        cases <- c(cases, master_df$cases[(master_df$state == state_name) & (master_df$dates == dates[selected_candidates[j]])])
     }
 }
 
@@ -224,18 +229,22 @@ peaks_df <- cbind(state = peaks_df$state, as.data.frame(scale(peaks_df[2:ncol(pe
 
 # select K value:
 
-k_val <- 5
+k_val <- 6
 
 # validate using silhouettes:
 
 set.seed(125)
 k <- kmeans(peaks_df[,c(2:(length(selected_candidates) + 1))], k_val)
-cluster2 <- case_when(k$cluster == 1 ~ 3,
+cluster2 <- case_when(k$cluster == 1 ~ 6,
                       k$cluster == 2 ~ 2,
-                      k$cluster == 3 ~ 1,
-                      k$cluster == 4 ~ 5,
-                      k$cluster == 5 ~ 4,
-                      k$cluster == 6 ~ 6)
+                      k$cluster == 3 ~ 4,
+                      k$cluster == 4 ~ 1,
+                      k$cluster == 5 ~ 3,
+                      k$cluster == 6 ~ 5,
+                      k$cluster == 7 ~ 7,
+                      k$cluster == 8 ~ 8,
+                      k$cluster == 9 ~ 9,
+                      k$cluster == 10 ~ 10)
 cluster <- factor(cluster2)
 confirmed_cluster <- cbind(peaks_df, cluster)
 
@@ -369,7 +378,7 @@ trends_plot <- full_plot %>%
     geom_vline(xintercept = as.Date(selected_dates), size = .8, color = "white") +
     geom_smooth(aes(color = cluster), se = FALSE, span = .1, size = .8) +
     scale_color_manual(name = "Cluster",
-                       values = magma(8)[3:8], 
+                       values = customPal, 
                        na.translate = FALSE, drop = FALSE) +
     scale_x_date(name = "", date_breaks = "2 months", date_labels = "%b") +
     scale_y_continuous(name = "mean daily \ncases/deaths \nper million ") +
@@ -394,106 +403,15 @@ trends_plot <- full_plot %>%
           legend.text = element_text(size = 8)
     )
 
-trends_plot
-
 # ----------
-# Heat Map
+# Export data to Tableau
 # ----------
 
-# measure each cluster's mean daily confirmed cases at each spike:
+cc <- confirmed_cluster %>%
+    select(state, cluster)
 
-cluster <- c()
-peak <- c()
-cases <- c()
+cluster_df <- master_df %>%
+    left_join(., cc, by = "state")
 
-for (i in 1:length(table(confirmed_cluster_section$cluster))) {
-    loess_data <- confirmed_cluster_section %>%
-        filter(cluster == i) %>%
-        select(date, cases)
-    
-    loess_data$index <- 1:nrow(loess_data)
-    
-    loess_fit <- loess(cases ~ index, loess_data, span = 0.1)
-    
-    loess_fit_df <- data.frame(index = 1:nrow(loess_data), fitted = loess_fit$fitted)
-    
-    cluster <-  c(cluster, rep(i, length(selected_candidates)))
-    
-    for (j in 1:length(selected_candidates)) {
-        peak <- c(peak, j)
-        cases <- c(cases, loess_fit_df$fitted[loess_fit_df$index == selected_candidates[j]])
-    }
-}
-
-# standardize each spike:
-
-df <- data.frame(cluster, peak, cases)
-
-cluster <- c()
-peak <- c()
-cases <- c()
-
-for (i in 1:length(selected_candidates)) {
-    subset_df <- df %>%
-        filter(peak == i)
-    
-    max_cases <- max(subset_df$cases)
-    min_cases <- 0
-    
-    standardized_cases <- (subset_df$cases - min_cases)/(max_cases - min_cases)
-    
-    cluster <- c(cluster, 1:length(table(confirmed_cluster_section$cluster)))
-    peak <- c(peak, rep(i, length(table(confirmed_cluster_section$cluster))))
-    cases <- c(cases, standardized_cases)
-}
-
-# plot heatmap:
-
-plot_df <- data.frame(cluster, peak, cases) %>%
-    mutate(peak = factor(peak))
-
-facet_names <- list(
-    "1" = "Spike 1", 
-    "2" = "Spike 2",
-    "3" = "Spike 3",
-    "4" = "Spike 4",
-    "5" = "Spike 5",
-    "6" = "Spike 6"
-)
-
-facet_labeller <- function(variable,value){
-    return(facet_names[value])
-}
-
-heatmap_plot <- plot_df %>%
-    ggplot(aes(x = 1, y = cluster)) +
-    ggtitle("\nEach Cluster's Contribution to the Five Primary Spikes",
-            subtitle = date_title) +
-    geom_tile(aes(fill = cases)) +
-    scale_y_reverse(name = "", breaks = 1:5, labels = c("1: The South, Southwest,\n    and California",
-                                                        "2: The Midwest\n    and Great Plains",
-                                                        "3: Mid-Atlantic, Cascadia,\n    and North New England",
-                                                        "4: Florida, Louisiana,\n    Alabama and Mississippi",
-                                                        "5: The Northeast\n    and Michigan")) +
-    scale_fill_gradientn(name = "Share of\nTotal Cases",
-                         colours = redsPal) +
-    facet_wrap(~peak, ncol = length(selected_candidates), labeller = facet_labeller, strip.position = "top") +
-    theme_minimal() +
-    theme(panel.grid.minor.x = element_blank(),
-          panel.grid.major = element_blank(),
-          text = element_text(color = "white", family = "Avenir"), 
-          axis.text.y = element_text(color = "white", hjust = 0),
-          axis.text.x = element_blank(),
-          axis.title.y = element_text(angle = 0, vjust = .5, hjust = 1, size = 12),
-          axis.title.x = element_blank(),
-          plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
-          plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
-          plot.background = element_rect(fill = "black", color = "black"),
-          legend.text = element_blank(),
-          strip.text = element_text(size = 10, color = "white"))
-
-heatmap_plot
-
-
-
+write.csv(cluster_df, "~/git/covid_tracking/tableau_data.csv")
 
