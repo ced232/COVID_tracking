@@ -125,6 +125,7 @@ for (state_name in names(table(weekly_cases$state))) {
     master_df <- rbind(master_df, new_df)
 }
 
+
 # ----------
 # Locate Spikes
 # ----------
@@ -202,6 +203,7 @@ peak_plot <- ggplot() +
           legend.text = element_text(size = 8))
 
 peak_plot
+
 
 # ----------
 # Clustering
@@ -319,6 +321,7 @@ confirmed_cluster_map <- plot_usmap(data = state_data, values = "cluster", color
 
 confirmed_cluster_map
 
+
 # ----------
 # Trends By State Cluster
 # ----------
@@ -403,6 +406,7 @@ trends_plot <- full_plot %>%
           legend.text = element_text(size = 8)
     )
 
+
 # ----------
 # Export data to Tableau
 # ----------
@@ -414,4 +418,88 @@ cluster_df <- master_df %>%
     left_join(., cc, by = "state")
 
 write.csv(cluster_df, "~/git/covid_tracking/tableau_data.csv")
+
+
+# ----------
+# Heat Map
+# ----------
+
+#reformat data to get standardized cases by cluster per spike
+
+heat_df <- peaks_df %>%
+    left_join(., cc, by = "state") %>%
+    select(-state) %>%
+    group_by(cluster) %>%
+    summarize_all(mean) %>%
+    gather(peak, value, -cluster) %>%
+    rowwise() %>%
+    mutate(peak = gsub("peak_", "", peak)) %>%
+    mutate(peak = as.numeric(peak))
+
+cluster <- c()
+peak <- c()
+cases <- c()
+
+for (i in 1:peak_count) {
+    subset_df <- heat_df %>%
+        filter(peak == i)
+    
+    max_cases <- max(subset_df$value)
+    min_cases <- min(subset_df$value)
+    
+    standardized_cases <- (subset_df$value - min_cases)/(max_cases - min_cases)
+    
+    cluster <- c(cluster, 1:k_val)
+    peak <- c(peak, rep(i, k_val))
+    cases <- c(cases, standardized_cases)
+}
+
+plot_df <- data.frame(cluster, peak, cases) %>%
+    mutate(peak = factor(peak))
+
+#make the plot:
+
+facet_names <- list(
+    "1" = "Spike 1", 
+    "2" = "Spike 2",
+    "3" = "Spike 3",
+    "4" = "Spike 4",
+    "5" = "Spike 5",
+    "6" = "Spike 6"
+)
+
+facet_labeller <- function(variable,value){
+    return(facet_names[value])
+}
+
+contribution_plot <- plot_df %>%
+    ggplot(aes(x = 1, y = cluster)) +
+    ggtitle("\nEach Cluster's Contribution to the Six Primary Spikes",
+            subtitle = date_title) +
+    geom_tile(aes(fill = cases)) +
+    scale_y_reverse(name = "", breaks = 1:peak_count, labels = c("1: Misc.",
+                                                                 "2: The Midwest\n    and Great Plains",
+                                                                 "3: Mid-Atlantic, Cascadia,\n    and North New England",
+                                                                 "4: The South",
+                                                                 "5: Michigan",
+                                                                 "6: The Northeast")) +
+    scale_fill_gradientn(name = "Share of\nTotal Cases", 
+                         colours = redsPal) +
+    facet_wrap(~peak, ncol = peak_count, labeller = facet_labeller, strip.position = "top") +
+    theme_minimal() +
+    theme(panel.grid.minor.x = element_blank(),
+          panel.grid.major = element_blank(),
+          text = element_text(color = "white", family = "Avenir"), 
+          axis.text.y = element_text(color = "white", hjust = 0),
+          axis.text.x = element_blank(),
+          axis.title.y = element_text(angle = 0, vjust = .5, hjust = 1, size = 12),
+          axis.title.x = element_blank(),
+          plot.title = element_text(family = "Avenir Black", hjust = .5, size = 14), 
+          plot.subtitle = element_text(family = "Avenir", hjust = .5, size = 10),
+          plot.background = element_rect(fill = "black", color = "black"), 
+          legend.text = element_blank(),
+          strip.text = element_text(size = 10, color = "white")
+    )
+
+contribution_plot
 
